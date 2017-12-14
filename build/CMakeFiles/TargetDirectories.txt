@@ -1,0 +1,3 @@
+/data/data/io.neoterm/files/home/ncc/build/CMakeFiles/rebuild_cache.dir
+/data/data/io.neoterm/files/home/ncc/build/CMakeFiles/edit_cache.dir
+/data/data/io.neoterm/files/home/ncc/build/CMakeFiles/ncc.dir

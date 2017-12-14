@@ -2,7 +2,7 @@
 #include <malloc.h>
 
 char  msg[200][10]={
-    "IMPORT",
+    "IMPORT","module",
     "VOID","CHAR","SHORT","INT","LONG","FLOAT","DOUBLE","ENUM","STRUCT",
     "UNSIGNED","STATIC","CONST","EXTERN",
     "IF","ELSE","SWITCH","CASE","DEFAULT","FOR","DO","WHILE","CONTINUE","BREAK","RETURN",
@@ -18,7 +18,7 @@ char  msg[200][10]={
     "DOT","ARROW", // . ->
 
     "LPB","RPB","LBK","RBK","LBS","RBS", // () [] {}
-    "COM","COL","SEM", // , : ;
+    "COM","COL","SEM","SCOPE", // , : ;
 
     "ID","CINT","CDOUBLE","CSTRING","CCHAR",
     "UNKNOW",
@@ -27,7 +27,7 @@ char  msg[200][10]={
 
 
 enum Token{
-    IMPORT,
+    IMPORT,MODULE,
     VOID,CHAR,SHORT,INT,LONG,FLOAT,DOUBLE,ENUM,STRUCT,
     UNSIGNED,STATIC,CONST,EXTERN,
     IF,ELSE,SWITCH,CASE,DEFAULT,FOR,DO,WHILE,CONTINUE,BREAK,RETURN,
@@ -43,7 +43,7 @@ enum Token{
     DOT,ARROW, // . ->
 
     LPB,RPB,LBK,RBK,LBS,RBS, // () [] {}
-    COM,COL,SEM, // , : ;
+    COM,COL,SEM,SCOPE, // , : ;
 
     ID,CINT,CDOUBLE,CSTRING,CCHAR,
     UNKNOW,
@@ -64,11 +64,14 @@ typedef struct
     
     char * lex_begin;
     char * forward;
+    char * back;
 
     int line;
-    int chpos;
+
 
     char value[4096];
+    int wp;
+    enum Token tk;
     int buff_size;
     int finish;
     //源文件
@@ -90,8 +93,13 @@ void fill_buff(char *buff, int size, FILE * source)
 /*
  *初始化词法分析 
  */
-void lex_init (Lex *lex)
+void lex_init (Lex *lex, char * filename)
 {
+    int i = 0;
+    for (; *(filename+i) != 0;i++) {
+        lex->filename[i] = *(filename+i);
+    }
+    lex->filename[i] = 0;
     if (lex->buff_size <= 0) {
         lex->buff_size = 1024;
     }
@@ -114,12 +122,25 @@ void lex_init (Lex *lex)
 }
 
 
+void lex_error(Lex *lex, char *msg)
+{
+    lex->value[lex->wp] = 0;
+    printf("lexing error at line:%d %s\n",lex->line, msg);
+    printf("%s...\n",lex->value);
+}
+
 /*
  * 词法分析测试 是否完成
  * 切换缓冲区
  */
 void lex_test(Lex * lex)
 {
+    if (lex->source_file == NULL) {
+        lex->finish = 1;
+        *lex->forward = LEX_WHATCHER;
+        return;
+    }
+
     if (lex->forward == lex->buff_alpha+lex->buff_size-1) {
         fill_buff(lex->buff_beta,lex->buff_size,lex->source_file);
         lex->forward = lex->buff_beta; 
@@ -135,15 +156,6 @@ void lex_test(Lex * lex)
 
 
 
-void lex_skip(Lex *lex)
-{
-    char ch = *lex->forward;
-    if (ch == LEX_WHATCHER) {
-        lex_test(lex);
-    }
-
-    
-}
 
 
 int is_alpha(char ch)
@@ -155,19 +167,115 @@ int is_digit(char ch)
     return (ch <= '9' && ch >= '0');
 }
 
-int match(char *s,char *e,char *res)
+int streq(char *s,char *e)
 {
-    if (s > e) {
-        return 0;
-    }
     int i = 0;
-    while (s+i <= e) {
-        if (*(s+i) != res[i]) return 0;
+    while (s[i] != 0 && e[i] != 0) {
+        if (s[i] != e[i]) return 0;
         i++;
     }
-    return 1;
+    return s[i]==e[i];
 }
 
+enum Token lex_keyword(Lex *lex)
+{
+
+    char * w = lex->value;
+    switch(w[0]) {
+    case 'f':
+        if (streq(w,"float")) {
+            return FLOAT;
+        }else if(streq(w,"for")) {
+            return FOR;
+        }
+        break;
+    case 'b':
+        if (streq(w,"break")) {
+            return BREAK;
+        }
+        break;
+    case 'r':
+        if (streq(w,"return")) {
+            return RETURN;
+        }
+        break;
+    case 'l':
+        if (streq(w,"long")) {
+            return LONG;
+        }
+        break;
+    case 'u':
+        if (streq(w,"unsigned")) {
+            return UNSIGNED;
+        }
+        break;
+    case 'w':
+        if (streq(w,"while")) {
+            return WHILE;
+        }
+        break;
+    case 'd':
+        if (streq(w,"double")) {
+            return DOUBLE;
+        }else if (streq(w,"do")) {
+            return DO;
+        }else if (streq(w,"default")) {
+            return DEFAULT;
+        }
+        break;
+    case 'e':
+        if (streq(w,"enum")) {
+            return ENUM;
+        }else if (streq(w,"extern")) {
+            return EXTERN;
+        }else if (streq(w,"else")) {
+            return ELSE;
+        }
+        break;
+    case 'm':
+        if (streq(w,"module")) {
+            return MODULE;
+        }
+    case 's':
+        if (streq(w,"short")) {
+            return SHORT;
+        }else if (streq(w,"struct")) {
+            return STRUCT;
+        }else if (streq(w,"static")) {
+            return STATIC;
+        }else if (streq(w,"switch")) {
+            return SWITCH;
+        }
+        break;
+    case 'v':
+        if (streq(w,"void")) {
+            return VOID;
+        }
+        break;
+    case 'i':
+        if (streq(w,"import")) {
+            return IMPORT;
+        }else if (streq(w,"if")) {
+            return IF;
+        }else if (streq(w,"int")) {
+            return INT;
+        }
+        break;
+    case 'c':
+        if (streq(w,"char")) {
+            return CHAR;
+        }else if (streq(w,"const")) {
+            return CONST;
+        }else if (streq(w,"case")) {
+            return CASE;
+        }else if (streq(w,"continue")) {
+            return CONTINUE;
+        }
+        break;
+    }
+    
+    return ID;
+}
 /*
  * 下一个
  */
@@ -175,11 +283,10 @@ enum Token lex_next_token (Lex *lex)
 {
     int  ch;
 
-    enum Token tk;
-    int wp = 0;
+    lex->wp = 0;
     lex->lex_begin = lex->forward;
     ch = *lex->forward;
-    lex->value[wp++] = ch;
+    lex->value[lex->wp++] = ch;
     if (ch == LEX_WHATCHER) {
         lex_test(lex);
         if (lex->finish) return END;
@@ -196,93 +303,167 @@ enum Token lex_next_token (Lex *lex)
         lex->line ++;
         return  lex_next_token(lex);
     }else if(ch == '(') {
-        tk  = LPB;
+        lex->tk  = LPB;
     }else if(ch == ')') {
-        tk = RPB;
+        lex->tk = RPB;
     }else if(ch == '[') {
-        tk = RPB;
+        lex->tk = LBK;
     }else if(ch == ']') {
-        tk = RPB;
+        lex->tk = RBK;
     }else if(ch == '{') {
-        tk = RPB;
+        lex->tk = LBS;
     }else if(ch == '}') {
-        tk = RPB;
+        lex->tk = RBS;
     }else if(ch == ',') {
-        tk = COM;
-    }else if(ch == ':') {
-        tk = COL;
+        lex->tk = COM;
     }else if(ch == ';') {
-        tk = SEM;
+        lex->tk = SEM;
     }else if(ch == '.') {
-        tk = DOT;
-    }else if(ch == '*') {
-        tk = STAR;
+        lex->tk = DOT;
     }else if(ch == '&') {
         ch = *(++lex->forward);
-        lex->value[wp++] = ch;
+        lex->value[lex->wp++] = ch;
         if (ch == '=') {
-            tk = AAS;
-        }if (ch == '&') {
-            tk = AND;
+            lex->tk = AAS;
+        }else if (ch == '&') {
+            lex->tk = AND;
         }else {
-            tk = BAND;
-            lex->value[wp-1] = 0;
+            lex->tk = BAND;
+            lex->value[lex->wp-1] = 0;
+            lex->forward = lex->lex_begin;
+        }
+    }else if(ch == '|') {
+        ch = *(++lex->forward);
+        lex->value[lex->wp++] = ch;
+        if (ch == '=') {
+            lex->tk = OAS;
+        }else if (ch == '|') {
+            lex->tk = OR;
+        }else {
+            lex->tk = BOR;
+            lex->value[lex->wp-1] = 0;
+            lex->forward = lex->lex_begin;
+        }
+    }else if(ch == '^') {
+        ch = *(++lex->forward);
+        lex->value[lex->wp++] = ch;
+        if (ch == '=') {
+            lex->tk = XAS;
+        }else {
+            lex->tk = XOR;
+            lex->value[lex->wp-1] = 0;
+            lex->forward = lex->lex_begin;
+        }
+    }else if(ch == '!') {
+        ch = *(++lex->forward);
+        lex->value[lex->wp++] = ch;
+        if (ch == '=') {
+            lex->tk = NEQ;
+        }else {
+            lex->tk = NOT;
+            lex->value[lex->wp-1] = 0;
             lex->forward = lex->lex_begin;
         }
     }else if(ch == '=') {
         ch = *(++lex->forward);
-        lex->value[wp++] = ch;
+        lex->value[lex->wp++] = ch;
         if (ch == '=') {
-            tk = EQ;
+            lex->tk = EQ;
         }else {
-            tk = ASSIGN;
-            lex->value[wp-1] = 0;
+            lex->tk = ASSIGN;
+            lex->value[lex->wp-1] = 0;
+            lex->forward = lex->lex_begin;
+        }
+    }else if(ch == ':') {
+        ch = *(++lex->forward);
+        lex->value[lex->wp++] = ch;
+        if (ch == ':') {
+            lex->tk = SCOPE;
+        }else {
+            lex->tk = COL;
+            lex->value[lex->wp-1] = 0;
             lex->forward = lex->lex_begin;
         }
     }else if(ch == '+') {
         ch = *(++lex->forward);
-        lex->value[wp++] = ch;
+        lex->value[lex->wp++] = ch;
         if (ch == '=') {
-            tk = PAS;
+            lex->tk = PAS;
+        }else if (ch == '+') {
+            lex->tk = SPLUS;
         }else {
-            lex->value[wp-1] = 0;
-            tk = PLUS;
+            lex->value[lex->wp-1] = 0;
+            lex->tk = PLUS;
             lex->forward = lex->lex_begin;
         }
     }else if(ch == '-') {
         ch = *(++lex->forward);
-        lex->value[wp++] = ch;
+        lex->value[lex->wp++] = ch;
         if (ch == '=') {
-            tk = SAS;
+            lex->tk = SAS;
+        }else if (ch == '-') {
+            lex->tk = SSUB;
         }else if (ch == '>') {
-            tk = ARROW;
+            lex->tk = ARROW;
         }else {
-            lex->value[wp-1] = 0;
-            tk = SUB;
+            lex->value[lex->wp-1] = 0;
+            lex->tk = SUB;
+            lex->forward = lex->lex_begin;
+        }
+    }else if(ch == '*') {
+        ch = *(++lex->forward);
+        lex->value[lex->wp++] = ch;
+        if (ch == '=') {
+            lex->tk = MAS;
+        }else {
+            lex->value[lex->wp-1] = 0;
+            lex->tk = STAR;
+            lex->forward = lex->lex_begin;
+        }
+    }else if(ch == '%') {
+        ch = *(++lex->forward);
+        lex->value[lex->wp++] = ch;
+        if (ch == '=') {
+            lex->tk = MODAS;
+        }else {
+            lex->value[lex->wp-1] = 0;
+            lex->tk = MOD;
             lex->forward = lex->lex_begin;
         }
     }else if(ch == '>') {
         ch = *(++lex->forward);
-        lex->value[wp++] = ch;
+        lex->value[lex->wp++] = ch;
         if (ch == '=') {
-            tk = GEQ;
+            lex->tk = GEQ;
         }else if (ch == '>') {
-            tk = SR;
+            lex->value[lex->wp++] = ch = *(lex->forward+1);
+            if (ch == '=') {
+                lex->tk = SRAS;
+                lex->forward++;
+            }else {
+                lex->tk = SR;
+            }
         }else {
-            lex->value[wp-1] = 0;
-            tk = GT;
+            lex->value[lex->wp-1] = 0;
+            lex->tk = GT;
             lex->forward = lex->lex_begin;
         }
     }else if(ch == '<') {
         ch = *(++lex->forward);
-        lex->value[wp++] = ch;
+        lex->value[lex->wp++] = ch;
         if (ch == '=') {
-            tk = LEQ;
+            lex->tk = LEQ;
         }else if (ch == '<') {
-            tk = SL;
+            lex->value[lex->wp++] = ch = *(lex->forward+1);
+            if (ch == '=') {
+                lex->tk = SLAS;
+                lex->forward++;
+            }else {
+                lex->tk = SL;
+            }
         }else {
-            tk = LT;
-            lex->value[wp-1] = 0;
+            lex->tk = LT;
+            lex->value[lex->wp-1] = 0;
             lex->forward = lex->lex_begin;
         }
     }else if (ch == '/') {
@@ -292,15 +473,17 @@ enum Token lex_next_token (Lex *lex)
             while (*lex->forward != '\n') {
                 if (ch == LEX_WHATCHER) {
                     lex_test(lex);
-                    if (lex->finish)  tk = END;
-                    break;
+                    if (lex->finish) {
+                        lex->tk = END;
+                        break;
+                    }
                 }
                 lex->forward++;
             }
             return lex_next_token(lex);
         }else if (ch == '=') {
-            tk = DAS;
-            lex->value[wp++] = ch;
+            lex->tk = DAS;
+            lex->value[lex->wp++] = ch;
         }else if (ch == '*') {
             ch = *(++lex->forward);
             while (ch != '*' || *(lex->forward+1) != '/' ) {
@@ -308,82 +491,105 @@ enum Token lex_next_token (Lex *lex)
                 ch = *(++lex->forward);
                 if (ch == LEX_WHATCHER) {
                     lex_test(lex);
-                    if (lex->finish)  tk = END;
-                    break;
+                    if (lex->finish) { 
+                        lex_error(lex,"expected '*/'");
+                        lex->tk = END;
+                        break;
+                    }
                 }
             } 
             lex->forward +=2;
             return lex_next_token(lex);
         }else {
-            tk = DIV;
+            lex->tk = DIV;
             lex->forward = lex->lex_begin;
         }
     }else if (is_digit(ch)) {
-        int intiger = 1;
-        wp--;
+        int point = 0;
+        lex->wp--;
         while(is_digit(ch) || ch == '.')  {
-            lex->value[wp++] = ch;
-            if (ch == '.') intiger --;
+            lex->value[lex->wp++] = ch;
+            if (ch == '.') point ++;
             ch = *(++lex->forward);
             if (ch == LEX_WHATCHER) {
                 lex_test(lex);
-                if (lex->finish)  tk = END;
-                break;
+                if (lex->finish) { 
+                    lex->tk = END;
+                    break;
+                }
             }
         }
-        if (intiger < 0) printf("error: too much '.' in a floating number\n");
-        tk = intiger == 0?CINT:CDOUBLE; 
+        if (point>1) lex_error(lex,"too much .");
+        lex->tk = point == 0?CINT:CDOUBLE; 
         --lex->forward;
     }else if (ch == '\'') {
-        tk = CCHAR;
+        lex->tk = CCHAR;
         ch = *(++lex->forward);
-        while(ch != '\'' || (lex->value[wp-1] == '\\' && lex->value[wp-2] != '\\')) {
-            lex->value[wp++] = ch;
+        while(ch != '\'' || (lex->value[lex->wp-1] == '\\' && lex->value[lex->wp-2] != '\\')) {
+            lex->value[lex->wp++] = ch;
             ch = *(++lex->forward);
             if (ch == LEX_WHATCHER) {
                 lex_test(lex);
-                if (lex->finish)  tk = END;
-                break;
+                if (lex->finish)  {
+                    lex_error(lex,"expect \'");
+                    lex->tk = END;
+                    break;
+                }
             }
         }
-        lex->value[wp++] = ch;
+        lex->value[lex->wp++] = ch;
 
     }else if(ch == '\"') {
-        tk = CSTRING;
+        lex->tk = CSTRING;
         ch = *(++lex->forward);
-        while(ch != '\"' || (lex->value[wp-1] == '\\' && lex->value[wp-2] != '\\')) {
-            lex->value[wp++] = ch;
+        while(ch != '\"' || (lex->value[lex->wp-1] == '\\' && lex->value[lex->wp-2] != '\\')) {
+            lex->value[lex->wp++] = ch;
             ch = *(++lex->forward);
             if (ch == LEX_WHATCHER) {
                 lex_test(lex);
-                if (lex->finish)  tk = END;
-                break;
+                if (lex->finish) {
+                    lex_error(lex,"expected \"");
+                    lex->tk = END;
+                    break;
+                }
             }
         }
-        lex->value[wp++] = ch;
+        lex->value[lex->wp++] = ch;
 
     }else if (is_alpha(ch) || ch == '_') {
-        tk = ID;
-        wp--;
+        lex->wp--;
         while(is_alpha(ch) || is_digit(ch) || ch == '_') {
-            lex->value[wp++] = ch;
+            lex->value[lex->wp++] = ch;
             ch = *(++lex->forward);
             if (ch == LEX_WHATCHER) {
                 lex_test(lex);
-                if (lex->finish)  tk = END;
-                break;
+                if (lex->finish)  {
+                    lex->tk = END;
+                    break;
+                }
             }
         }
+        lex->value[lex->wp] = 0;
+        lex->tk = lex_keyword(lex);
         --lex->forward;
     }else {
-        tk = UNKNOW;
+        lex->tk = UNKNOW;
     }
-    lex->value[wp] = 0;
+    lex->value[lex->wp] = 0;
     lex->forward ++;
         //putchar(ch);       
-    return tk;
+    return lex->tk;
 }
 
+void lex_set_look_ahead(Lex *lex)
+{
+    lex->back = lex->forward;
+}
+
+void lex_reset_look_ahead(Lex * lex)
+{
+    lex->forword = lex->back;
+}
 void lex_free (Lex * lex)
 {
     if (lex) {
@@ -393,31 +599,34 @@ void lex_free (Lex * lex)
     }
 }
 
+
+
+
+/*================语法=============*/
+
+
+
+void parse_defination(Lex *lex)
+{
+    lex_next_token(lex);
+    if ()
+    
+}
+void parse( char * file)
+{
+    Lex lex;
+    lex.buff_size = 1024;
+    lex_init(&lex,file);
+    while(!lex.finish) {
+        parse_defination(&lex);
+    }
+    lex_free(&lex);
+}
 int main (int argc, char ** argv)
 {
-
-    Lex lex = {"ncc.c"};
-    lex.buff_size = 1024;
-    lex_init(&lex);
-    int line = lex.line;
-#ifdef SOURCE_
-    printf("1 ");
-    while (!lex.finish) {
-        enum Token tk = lex_next_token(&lex);
-        if (tk == END) break;
-        for (int i = line; i < lex.line;i++) {
-            printf("\n%d ",i+1);
-        }
-        printf("%s ",lex.value);
-        line = lex.line;
+    if (argc < 2) {
+        printf("no input files\n");
+        return 0;
     }
-#else 
-    while (!lex.finish) {
-        enum Token tk = lex_next_token(&lex);
-        if (tk == END) break;
-        printf("%d <%s,%s> \n",lex.line,msg[tk],lex.value);
-        line = lex.line;
-    }
-#endif
-    lex_free(&lex);
+    parse(argv[1]);
 }

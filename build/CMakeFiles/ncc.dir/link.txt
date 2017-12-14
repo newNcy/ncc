@@ -1,0 +1,1 @@
+/data/data/io.neoterm/files/usr/bin/cc -g  -rdynamic CMakeFiles/ncc.dir/ncc.c.o  -o ncc 
